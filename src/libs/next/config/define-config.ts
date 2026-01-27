@@ -8,6 +8,7 @@ import ReactComponentName from 'react-scan/react-component-name/webpack';
 interface CustomNextConfig {
   experimental?: NextConfig['experimental'];
   headers?: Header[];
+  outputFileTracingExcludes?: NextConfig['outputFileTracingExcludes'];
   redirects?: Redirect[];
   serverExternalPackages?: NextConfig['serverExternalPackages'];
   turbopack?: NextConfig['turbopack'];
@@ -238,6 +239,9 @@ export function defineConfig(config: CustomNextConfig) {
         hmrRefreshes: true,
       },
     },
+    ...(config.outputFileTracingExcludes && {
+      outputFileTracingExcludes: config.outputFileTracingExcludes,
+    }),
     reactStrictMode: true,
     redirects: async () => [
       {
@@ -362,9 +366,6 @@ export function defineConfig(config: CustomNextConfig) {
         test: /\.m?js$/,
         type: 'javascript/auto',
       });
-
-      // https://github.com/pinojs/pino/issues/688#issuecomment-637763276
-      baseWebpackConfig.externals.push('pino-pretty');
 
       baseWebpackConfig.resolve.alias.canvas = false;
 

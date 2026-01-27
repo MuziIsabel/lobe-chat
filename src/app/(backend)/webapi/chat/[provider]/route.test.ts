@@ -27,9 +27,16 @@ vi.mock('@/envs/auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/envs/auth')>();
   return {
     ...actual,
-    enableBetterAuth: false,
   };
 });
+
+vi.mock('@/auth', () => ({
+  auth: {
+    api: {
+      getSession: vi.fn().mockResolvedValue(null),
+    },
+  },
+}));
 
 // 模拟请求和响应
 let request: Request;
@@ -60,7 +67,14 @@ describe('POST handler', () => {
         azureApiVersion: 'v1',
       });
 
-      const mockRuntime: LobeRuntimeAI = { baseURL: 'abc', chat: vi.fn() };
+      // chat mock 需要返回一个 Response 对象，否则中间件访问 res.headers 会报错
+      const mockChatResponse = new Response(JSON.stringify({ success: true }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const mockRuntime: LobeRuntimeAI = {
+        baseURL: 'abc',
+        chat: vi.fn().mockResolvedValue(mockChatResponse),
+      };
 
       // Mock initModelRuntimeFromDB
       vi.mocked(initModelRuntimeFromDB).mockResolvedValue(new ModelRuntime(mockRuntime));

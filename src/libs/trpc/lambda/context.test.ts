@@ -9,7 +9,6 @@ describe('createContextInner', () => {
     expect(context).toMatchObject({
       authorizationHeader: undefined,
       marketAccessToken: undefined,
-      nextAuth: undefined,
       oidcAuth: undefined,
       userAgent: undefined,
       userId: undefined,
@@ -58,18 +57,6 @@ describe('createContextInner', () => {
     expect(context.oidcAuth).toEqual(oidcAuth);
   });
 
-  it('should create context with NextAuth user data', async () => {
-    const nextAuth = {
-      id: 'next-auth-user-id',
-      name: 'Test User',
-      email: 'test@example.com',
-    };
-
-    const context = await createContextInner({ nextAuth });
-
-    expect(context.nextAuth).toEqual(nextAuth);
-  });
-
   it('should create context with all parameters combined', async () => {
     const params = {
       authorizationHeader: 'Bearer token',
@@ -99,5 +86,18 @@ describe('createContextInner', () => {
 
     expect(context1.resHeaders).toBeInstanceOf(Headers);
     expect(context2.resHeaders).toBeInstanceOf(Headers);
+  });
+
+  it('should always provide resHeaders', async () => {
+    const ctx = await createContextInner();
+
+    expect(ctx.resHeaders).toBeInstanceOf(Headers);
+  });
+
+  it('should keep provided traceContext', async () => {
+    const traceContext = { test: 'ctx' } as any;
+    const ctx = await createContextInner({ traceContext });
+
+    expect(ctx.traceContext).toBe(traceContext);
   });
 });

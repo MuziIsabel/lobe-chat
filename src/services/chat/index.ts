@@ -25,7 +25,6 @@ import { ModelProvider } from 'model-bank';
 
 import { DEFAULT_AGENT_CONFIG } from '@/const/settings';
 import { getSearchConfig } from '@/helpers/getSearchConfig';
-import { createAgentToolsEngine } from '@/helpers/toolEngineering';
 import { getAgentStoreState } from '@/store/agent';
 import {
   agentByIdSelectors,
@@ -129,25 +128,22 @@ class ChatService {
 
     // =================== 1. use pre-resolved agent config =================== //
     // Config is resolved in AgentRuntime layer (internal_createAgentState)
-    // which handles isSubTask filtering and other runtime modifications
+    // which handles isSubTask filtering, disableTools, and tools generation
 
     const targetAgentId = getTargetAgentId(agentId);
 
-    const { agentConfig, chatConfig, plugins: pluginIds } = resolvedAgentConfig;
+    // Tools are pre-generated in internal_createAgentState and passed via resolvedAgentConfig
+    // This avoids duplicate toolsEngine creation and ensures disableTools is properly handled
+    const {
+      agentConfig,
+      chatConfig,
+      enabledManifests = [],
+      enabledToolIds = [],
+      tools,
+    } = resolvedAgentConfig;
 
     // Get search config with agentId for agent-specific settings
     const searchConfig = getSearchConfig(payload.model, payload.provider!, targetAgentId);
-
-    const toolsEngine = createAgentToolsEngine({
-      model: payload.model,
-      provider: payload.provider!,
-    });
-
-    const { tools, enabledToolIds, enabledManifests } = toolsEngine.generateToolsDetailed({
-      model: payload.model,
-      provider: payload.provider!,
-      toolIds: pluginIds,
-    });
 
     // =================== 1.1 process user memories =================== //
 
@@ -284,7 +280,7 @@ class ChatService {
         stream: chatConfig.enableStreaming !== false,
         tools,
       },
-      options,
+      { ...options, agentId: targetAgentId, topicId },
     );
   };
 
@@ -314,7 +310,7 @@ class ChatService {
   };
 
   getChatCompletion = async (params: Partial<ChatStreamPayload>, options?: FetchOptions) => {
-    const { signal, responseAnimation } = options ?? {};
+    const { agentId, signal, responseAnimation, topicId } = options ?? {};
 
     const { provider = ModelProvider.OpenAI, ...res } = params;
 
@@ -401,7 +397,12 @@ class ChatService {
     const traceHeader = createTraceHeader({ ...options?.trace });
 
     const headers = await createHeaderWithAuth({
-      headers: { 'Content-Type': 'application/json', ...traceHeader },
+      headers: {
+        'Content-Type': 'application/json',
+        ...traceHeader,
+        ...(agentId && { 'x-agent-id': agentId }),
+        ...(topicId && { 'x-topic-id': topicId }),
+      },
       provider,
     });
 

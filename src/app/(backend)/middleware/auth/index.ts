@@ -3,17 +3,15 @@ import {
   type ChatCompletionErrorPayload,
   type ModelRuntime,
 } from '@lobechat/model-runtime';
+import { context as otContext } from '@lobechat/observability-otel/api';
 import { ChatErrorType, type ClientSecretPayload } from '@lobechat/types';
 import { getXorPayload } from '@lobechat/utils/server';
 
+import { auth } from '@/auth';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { type LobeChatDatabase } from '@/database/type';
-import {
-  LOBE_CHAT_AUTH_HEADER,
-  LOBE_CHAT_OIDC_AUTH_HEADER,
-  OAUTH_AUTHORIZED,
-  enableBetterAuth,
-} from '@/envs/auth';
+import { LOBE_CHAT_AUTH_HEADER, LOBE_CHAT_OIDC_AUTH_HEADER, OAUTH_AUTHORIZED } from '@/envs/auth';
+import { extractTraceContext, injectActiveTraceHeaders } from '@/libs/observability/traceparent';
 import { validateOIDCJWT } from '@/libs/oidc-provider/jwt';
 import { createErrorResponse } from '@/utils/errorResponse';
 
@@ -58,18 +56,13 @@ export const checkAuth =
       // get Authorization from header
       const authorization = req.headers.get(LOBE_CHAT_AUTH_HEADER);
       const oauthAuthorized = !!req.headers.get(OAUTH_AUTHORIZED);
-      let betterAuthAuthorized = false;
 
       // better auth handler
-      if (enableBetterAuth) {
-        const { auth: betterAuth } = await import('@/auth');
+      const session = await auth.api.getSession({
+        headers: req.headers,
+      });
 
-        const session = await betterAuth.api.getSession({
-          headers: req.headers,
-        });
-
-        betterAuthAuthorized = !!session?.user?.id;
-      }
+      const betterAuthAuthorized = !!session?.user?.id;
 
       if (!authorization) throw AgentRuntimeError.createError(ChatErrorType.Unauthorized);
 
@@ -123,5 +116,31 @@ export const checkAuth =
 
     const userId = jwtPayload.userId || '';
 
-    return handler(clonedReq, { ...options, jwtPayload, serverDB, userId });
+    const extractedContext = extractTraceContext(req.headers);
+
+    const res = await otContext.with(extractedContext, () =>
+      handler(clonedReq, { ...options, jwtPayload, serverDB, userId }),
+    );
+
+    // Only inject trace headers when the handler returns a Response
+    // NOTICE: this is related to src/app/(backend)/webapi/chat/[provider]/route.test.ts
+    if (!(res instanceof Response)) {
+      console.warn(
+        'Response is not an instance of Response, skipping trace header injection. Possibly bug or mocked response in tests, please check and make sure this is intended behavior.',
+      );
+      return res;
+    }
+
+    try {
+      const headers = new Headers(res.headers);
+      const traceparent = injectActiveTraceHeaders(headers);
+      if (!traceparent) {
+        return res;
+      }
+
+      return new Response(res.body, { headers, status: res.status, statusText: res.statusText });
+    } catch (err) {
+      console.error('Failed to inject trace headers:', err);
+      return res;
+    }
   };

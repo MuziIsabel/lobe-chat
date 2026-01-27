@@ -101,6 +101,7 @@ export interface SystemStatus {
   hideGemini2_5FlashImagePreviewChineseWarning?: boolean;
   hidePWAInstaller?: boolean;
   hideThreadLimitAlert?: boolean;
+  hideTopicSharePrivacyWarning?: boolean;
   imagePanelWidth: number;
   imageTopicPanelWidth?: number;
   /**
@@ -137,6 +138,7 @@ export interface SystemStatus {
    */
   pagePageSize?: number;
   portalWidth: number;
+  readNotificationSlugs?: string[];
   /**
    * Resource Manager column widths
    */
@@ -211,6 +213,7 @@ export const INITIAL_STATUS = {
   hideGemini2_5FlashImagePreviewChineseWarning: false,
   hidePWAInstaller: false,
   hideThreadLimitAlert: false,
+  hideTopicSharePrivacyWarning: false,
   imagePanelWidth: 320,
   imageTopicPanelWidth: 80,
   knowledgeBaseModalViewMode: 'list' as const,
@@ -222,6 +225,7 @@ export const INITIAL_STATUS = {
   pageAgentPanelWidth: 360,
   pagePageSize: 20,
   portalWidth: 400,
+  readNotificationSlugs: [],
   resourceManagerColumnWidths: {
     date: 160,
     name: 574,
